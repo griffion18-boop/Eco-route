@@ -1,0 +1,390 @@
+import { CollectionTeam, DepotLocation, PickupRequest } from '../types';
+import { calculatePriorityScore } from './priority';
+import { SAMPLE_GARBAGE_PHOTOS } from './imageCompressor';
+
+export const DEMO_DEPOTS: DepotLocation[] = [
+  {
+    id: 'DEPOT-MUM-01',
+    name: 'Central Municipal Solid Waste Station',
+    address: 'Senapati Bapat Marg, Dadar West, Mumbai 400028',
+    latitude: 19.0195,
+    longitude: 72.8424,
+    isMain: true,
+  },
+  {
+    id: 'DEPOT-MUM-02',
+    name: 'Western Suburbs Waste Transfer Hub',
+    address: 'MIDC Central Road, Andheri East, Mumbai 400093',
+    latitude: 19.1192,
+    longitude: 72.8685,
+    isMain: false,
+  },
+  {
+    id: 'DEPOT-MUM-03',
+    name: 'Eastern Suburbs Processing Facility',
+    address: 'Ghatkopar-Mankhurd Link Rd, Chembur, Mumbai 400071',
+    latitude: 19.0654,
+    longitude: 72.9056,
+    isMain: false,
+  },
+];
+
+export const INITIAL_TEAMS: CollectionTeam[] = [
+  {
+    id: 'TEAM-MUM-01',
+    name: 'Team Alpha – Swachh Ward 12 Rapid Response',
+    vehicleNumber: 'MH-01-CV-4210',
+    vehicleType: 'Heavy Hydraulic Compactor (CNG)',
+    maxCapacityKg: 4000,
+    crew: ['Rahul More (Operations Lead)', 'Sneha Kulkarni (Driver)'],
+    status: 'On Route',
+    assignedRequestIds: ['REQ-MUM-103', 'REQ-MUM-107'],
+    completedRequestIds: ['REQ-MUM-111'],
+    activeRouteSummary: {
+      totalDistanceKm: 16.4,
+      estimatedMinutes: 58,
+      stopCount: 2,
+      depotId: 'DEPOT-MUM-01',
+    },
+  },
+  {
+    id: 'TEAM-MUM-02',
+    name: 'Team Beta – Suburban Eco-Hauler',
+    vehicleNumber: 'MH-02-TR-8845',
+    vehicleType: 'High-Volume Tipper Truck',
+    maxCapacityKg: 5500,
+    crew: ['Sachin Gaikwad (Lead)', 'Ramesh Kamble (Operator)'],
+    status: 'Available',
+    assignedRequestIds: [],
+    completedRequestIds: ['REQ-MUM-112', 'REQ-MUM-114'],
+  },
+  {
+    id: 'TEAM-MUM-03',
+    name: 'Team Gamma – Bio-Clean Wet Waste Unit',
+    vehicleNumber: 'MH-03-BW-1922',
+    vehicleType: 'Sealed Organic Waste Carrier',
+    maxCapacityKg: 2800,
+    crew: ['Deepa Shinde (Lead Driver)', 'Aniket Joshi (Crew)'],
+    status: 'Standby',
+    assignedRequestIds: ['REQ-MUM-106'],
+    completedRequestIds: [],
+  },
+  {
+    id: 'TEAM-MUM-04',
+    name: 'Team Delta – HazMat & Special Debris Squad',
+    vehicleNumber: 'MH-04-HZ-6031',
+    vehicleType: 'Specialized Biohazard Carrier',
+    maxCapacityKg: 2200,
+    crew: ['Tariq Mansoori (HazMat Officer)', 'Amit Gokhale (Safety Specialist)'],
+    status: 'On Route',
+    assignedRequestIds: ['REQ-MUM-104'],
+    completedRequestIds: ['REQ-MUM-113'],
+  },
+];
+
+interface RawRequestSeed {
+  id: string;
+  requesterName: string;
+  locationName: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  category: 'General' | 'Plastic' | 'Organic' | 'Electronic' | 'Hazardous';
+  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  waitingHours: number;
+  quantityKg: number;
+  sensitiveProximity: 'None' | 'Moderate' | 'Close' | 'Adjacent';
+  status: 'Pending' | 'Assigned' | 'In Progress' | 'Completed';
+  assignedTeamId?: string;
+  notes: string;
+  photos?: string[];
+  createdAt: string;
+  completedAt?: string;
+}
+
+const RAW_SEEDS: RawRequestSeed[] = [
+  {
+    id: 'REQ-MUM-101',
+    requesterName: 'Priya Sharma',
+    locationName: 'Dadar Flower Market Commercial Area',
+    address: 'Near Senapati Bapat Marg, Dadar West, Mumbai 400028',
+    latitude: 19.0185,
+    longitude: 72.8430,
+    category: 'Organic',
+    severity: 'High',
+    waitingHours: 36,
+    quantityKg: 580,
+    sensitiveProximity: 'Adjacent', // Dense railway pedestrian passage & market
+    status: 'Pending',
+    notes: 'Overflowing wet flower stalls and decayed garland foliage blocking pedestrian alleyway.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[0].dataUrl, SAMPLE_GARBAGE_PHOTOS[2].dataUrl],
+    createdAt: '2026-09-30T09:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-102',
+    requesterName: 'Aarav Patil',
+    locationName: 'Kurla Station West Auto Stand',
+    address: 'Station Road, Kurla West, Mumbai 400070',
+    latitude: 19.0688,
+    longitude: 72.8792,
+    category: 'Hazardous',
+    severity: 'Critical',
+    waitingHours: 20,
+    quantityKg: 340,
+    sensitiveProximity: 'Close', // Adjacent to stormwater nullah canal
+    status: 'Pending',
+    notes: 'Chemical dye drums dumped near stormwater drainage channel. High leakage risk.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[1].dataUrl],
+    createdAt: '2026-10-01T03:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-103',
+    requesterName: 'Rohan Deshmukh',
+    locationName: 'Hill Road Shopping Promenade',
+    address: 'Opp. St. Joseph Convent, Bandra West, Mumbai 400050',
+    latitude: 19.0560,
+    longitude: 72.8315,
+    category: 'Plastic',
+    severity: 'High',
+    waitingHours: 28,
+    quantityKg: 420,
+    sensitiveProximity: 'Close',
+    status: 'Assigned',
+    assignedTeamId: 'TEAM-MUM-01',
+    notes: 'Packaging bubble wrap, plastic shipping cartons, and retail consumer litter.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[1].dataUrl],
+    createdAt: '2026-09-30T17:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-104',
+    requesterName: 'Dr. Sunita Verma',
+    locationName: 'KEM Hospital Perimeter Service Lane',
+    address: 'Acharya Donde Marg, Parel, Mumbai 400012',
+    latitude: 19.0028,
+    longitude: 72.8428,
+    category: 'Hazardous',
+    severity: 'Critical',
+    waitingHours: 44,
+    quantityKg: 210,
+    sensitiveProximity: 'Adjacent', // Directly outside public hospital outpatient wing
+    status: 'In Progress',
+    assignedTeamId: 'TEAM-MUM-04',
+    notes: 'Compromised clinical sharps bins and packaging near back dispensary gate.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[0].dataUrl],
+    createdAt: '2026-09-30T03:30:00Z',
+  },
+  {
+    id: 'REQ-MUM-105',
+    requesterName: 'Farhan Shaikh',
+    locationName: 'Colaba Causeway Fish Landing',
+    address: 'Near Sassoon Dock Gate, Colaba, Mumbai 400005',
+    latitude: 18.9135,
+    longitude: 72.8230,
+    category: 'Organic',
+    severity: 'Medium',
+    waitingHours: 46,
+    quantityKg: 620,
+    sensitiveProximity: 'Adjacent', // Sea coastline
+    status: 'Pending',
+    notes: 'Seafood market organic trimmings requiring rapid refrigeration transfer.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[2].dataUrl],
+    createdAt: '2026-09-29T21:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-106',
+    requesterName: 'Kavita Nair',
+    locationName: 'Hiranandani Gardens Commercial Hub',
+    address: 'Central Avenue, Powai, Mumbai 400076',
+    latitude: 19.1172,
+    longitude: 72.9095,
+    category: 'Organic',
+    severity: 'Medium',
+    waitingHours: 15,
+    quantityKg: 490,
+    sensitiveProximity: 'Moderate', // Near Powai lake promenade
+    status: 'Assigned',
+    assignedTeamId: 'TEAM-MUM-03',
+    notes: 'Food court compost churn bin full after evening dining hours.',
+    createdAt: '2026-10-01T07:15:00Z',
+  },
+  {
+    id: 'REQ-MUM-107',
+    requesterName: 'Amit Gokhale',
+    locationName: 'MIDC Electronic IT Zone',
+    address: 'Road No. 16, Andheri East, Mumbai 400093',
+    latitude: 19.1220,
+    longitude: 72.8710,
+    category: 'Electronic',
+    severity: 'Medium',
+    waitingHours: 24,
+    quantityKg: 380,
+    sensitiveProximity: 'None',
+    status: 'Assigned',
+    assignedTeamId: 'TEAM-MUM-01',
+    notes: 'Decommissioned CRT monitors, server cables, and circuit boards from tech park.',
+    createdAt: '2026-09-30T23:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-108',
+    requesterName: 'Rajesh Sawant',
+    locationName: 'Goregaon West Link Road Junction',
+    address: 'Near Inorbit Mall, Goregaon West, Mumbai 400104',
+    latitude: 19.1685,
+    longitude: 72.8360,
+    category: 'General',
+    severity: 'High',
+    waitingHours: 52,
+    quantityKg: 510,
+    sensitiveProximity: 'Moderate',
+    status: 'Pending',
+    notes: 'Roadside construction demolition rubble and mixed debris blocking service road.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[3].dataUrl],
+    createdAt: '2026-09-29T15:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-109',
+    requesterName: 'Meera Iyer',
+    locationName: 'Shivaji Park Sports Pavilion',
+    address: 'Cadell Road, Dadar West, Mumbai 400028',
+    latitude: 19.0270,
+    longitude: 72.8375,
+    category: 'Plastic',
+    severity: 'Low',
+    waitingHours: 14,
+    quantityKg: 190,
+    sensitiveProximity: 'Moderate', // Public cricket ground
+    status: 'Pending',
+    notes: 'Discarded mineral water bottles and snack packaging along walking track.',
+    createdAt: '2026-10-01T09:30:00Z',
+  },
+  {
+    id: 'REQ-MUM-110',
+    requesterName: 'Anil Chougule',
+    locationName: 'Borivali National Park Entrance',
+    address: 'Western Express Highway, Borivali East, Mumbai 400066',
+    latitude: 19.2275,
+    longitude: 72.8625,
+    category: 'General',
+    severity: 'Low',
+    waitingHours: 10,
+    quantityKg: 220,
+    sensitiveProximity: 'Close', // Forest reserve boundary
+    status: 'Pending',
+    notes: 'Weekend picnic litter accumulated near tourist ticketing counter.',
+    createdAt: '2026-10-01T13:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-111',
+    requesterName: 'Nisha Kadam',
+    locationName: 'Lower Parel Monorail Transit Station',
+    address: 'NM Joshi Marg, Lower Parel, Mumbai 400013',
+    latitude: 18.9960,
+    longitude: 72.8305,
+    category: 'General',
+    severity: 'High',
+    waitingHours: 58,
+    quantityKg: 540,
+    sensitiveProximity: 'Close',
+    status: 'Completed',
+    assignedTeamId: 'TEAM-MUM-01',
+    notes: 'Station staircase communal garbage container cleared during early morning sweep.',
+    createdAt: '2026-09-29T08:00:00Z',
+    completedAt: '2026-10-01T14:20:00Z',
+  },
+  {
+    id: 'REQ-MUM-112',
+    requesterName: 'Vikram Merchant',
+    locationName: 'Chembur Diamond Garden Market',
+    address: 'Central Avenue Rd, Chembur, Mumbai 400071',
+    latitude: 19.0600,
+    longitude: 72.8980,
+    category: 'Plastic',
+    severity: 'Medium',
+    waitingHours: 32,
+    quantityKg: 310,
+    sensitiveProximity: 'None',
+    status: 'Completed',
+    assignedTeamId: 'TEAM-MUM-02',
+    notes: 'Wholesale retail plastic bag sorting station collected and baled.',
+    createdAt: '2026-09-30T15:00:00Z',
+    completedAt: '2026-10-01T11:45:00Z',
+  },
+  {
+    id: 'REQ-MUM-113',
+    requesterName: 'Pooja Rane',
+    locationName: 'Bandra Kurla Complex (BKC) Biotech Lab',
+    address: 'G Block, Bandra Kurla Complex, Bandra East, Mumbai 400051',
+    latitude: 19.0665,
+    longitude: 72.8680,
+    category: 'Hazardous',
+    severity: 'Critical',
+    waitingHours: 62,
+    quantityKg: 200,
+    sensitiveProximity: 'Adjacent', // Research hub
+    status: 'Completed',
+    assignedTeamId: 'TEAM-MUM-04',
+    notes: 'Certified laboratory chemical disposal canisters transferred under seal.',
+    createdAt: '2026-09-29T04:00:00Z',
+    completedAt: '2026-10-01T08:10:00Z',
+  },
+  {
+    id: 'REQ-MUM-114',
+    requesterName: 'Tanvi Shah',
+    locationName: 'Carter Road Joggers Park Coast',
+    address: 'Sangeet Samrat Naushad Ali Rd, Bandra West, Mumbai 400050',
+    latitude: 19.0645,
+    longitude: 72.8220,
+    category: 'Plastic',
+    severity: 'Low',
+    waitingHours: 18,
+    quantityKg: 150,
+    sensitiveProximity: 'Close',
+    status: 'Completed',
+    assignedTeamId: 'TEAM-MUM-02',
+    notes: 'High-tide shoreline plastic bottle washed ashore cleared by beach squad.',
+    createdAt: '2026-10-01T05:00:00Z',
+    completedAt: '2026-10-01T13:00:00Z',
+  },
+  {
+    id: 'REQ-MUM-115',
+    requesterName: 'Sanjay Lokhande',
+    locationName: 'Lokhandwala Complex Market Lane',
+    address: 'Main Market Rd, Andheri West, Mumbai 400053',
+    latitude: 19.1415,
+    longitude: 72.8265,
+    category: 'Plastic',
+    severity: 'High',
+    waitingHours: 42,
+    quantityKg: 440,
+    sensitiveProximity: 'Adjacent', // High-density residential shopping square
+    status: 'Pending',
+    notes: 'Carton and packaging plastic dumping outside residential society gate.',
+    photos: [SAMPLE_GARBAGE_PHOTOS[0].dataUrl],
+    createdAt: '2026-09-30T05:00:00Z',
+  },
+];
+
+export function getInitialPickupRequests(): PickupRequest[] {
+  return RAW_SEEDS.map((seed) => {
+    const { score, level } = calculatePriorityScore({
+      severity: seed.severity,
+      waitingHours: seed.waitingHours,
+      quantityKg: seed.quantityKg,
+      sensitiveProximity: seed.sensitiveProximity,
+    });
+
+    const sensitiveScoreMap = {
+      None: 0,
+      Moderate: 35,
+      Close: 70,
+      Adjacent: 100,
+    };
+
+    return {
+      ...seed,
+      sensitiveProximityScore: sensitiveScoreMap[seed.sensitiveProximity],
+      priorityScore: score,
+      priorityLevel: level,
+    };
+  });
+}

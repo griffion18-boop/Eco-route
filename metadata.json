@@ -1,0 +1,6 @@
+{
+  "name": "EcoRoute Mumbai – Smart Waste Collection Optimizer",
+  "description": "Municipal waste management dashboard for Mumbai wards: manage citizen complaints, inspect photographic evidence, and optimize collection routes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

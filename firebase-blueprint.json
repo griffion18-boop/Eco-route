@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "pickup_request": {
+      "title": "PickupRequest",
+      "description": "A municipal solid waste pickup request or citizen grievance report in Mumbai",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the pickup request"
+        },
+        "requesterName": {
+          "type": "string",
+          "description": "Name of citizen or ward representative who reported the waste"
+        },
+        "locationName": {
+          "type": "string",
+          "description": "Name or landmark of the pickup location"
+        },
+        "address": {
+          "type": "string",
+          "description": "Street address in Mumbai"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Geographical latitude"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Geographical longitude"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["General", "Plastic", "Organic", "Electronic", "Hazardous"],
+          "description": "Category of solid waste"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["Low", "Medium", "High", "Critical"],
+          "description": "Assessed hazard and impact severity level"
+        },
+        "waitingHours": {
+          "type": "number",
+          "description": "Elapsed waiting time in hours"
+        },
+        "quantityKg": {
+          "type": "number",
+          "description": "Estimated waste quantity in kilograms"
+        },
+        "sensitiveProximity": {
+          "type": "string",
+          "enum": ["None", "Moderate", "Close", "Adjacent"],
+          "description": "Proximity to sensitive zones such as schools, hospitals, or water bodies"
+        },
+        "sensitiveProximityScore": {
+          "type": "number",
+          "description": "Normalized sensitive location proximity score (0-100)"
+        },
+        "priorityScore": {
+          "type": "number",
+          "description": "Calculated priority score from 0 to 100"
+        },
+        "priorityLevel": {
+          "type": "string",
+          "enum": ["Critical", "High", "Medium", "Low"],
+          "description": "Priority tier classification"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Assigned", "In Progress", "Completed"],
+          "description": "Current lifecycle status of the request"
+        },
+        "assignedTeamId": {
+          "type": "string",
+          "description": "ID of the collection team assigned to this pickup"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Dispatch or access notes"
+        },
+        "photos": {
+          "type": "array",
+          "description": "List of evidence image data URLs or URLs"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when the request was logged"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the pickup was completed"
+        }
+      },
+      "required": [
+        "id",
+        "requesterName",
+        "locationName",
+        "address",
+        "latitude",
+        "longitude",
+        "category",
+        "severity",
+        "waitingHours",
+        "quantityKg",
+        "sensitiveProximity",
+        "priorityScore",
+        "priorityLevel",
+        "status"
+      ]
+    },
+    "collection_team": {
+      "title": "CollectionTeam",
+      "description": "A municipal solid waste collection team and vehicle roster",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Team identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the collection unit"
+        },
+        "vehicleNumber": {
+          "type": "string",
+          "description": "Vehicle registration number (e.g. MH-01-CV-4210)"
+        },
+        "vehicleType": {
+          "type": "string",
+          "description": "Type of vehicle (e.g. Compactor, Tipper, Bio-Clean)"
+        },
+        "maxCapacityKg": {
+          "type": "number",
+          "description": "Maximum payload capacity in kilograms"
+        },
+        "crew": {
+          "type": "array",
+          "description": "Crew member names"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Available", "On Route", "Standby", "Maintenance"],
+          "description": "Current operational status of the team"
+        },
+        "assignedRequestIds": {
+          "type": "array",
+          "description": "List of pickup request IDs assigned to this team"
+        },
+        "completedRequestIds": {
+          "type": "array",
+          "description": "List of completed pickup request IDs"
+        }
+      },
+      "required": ["id", "name", "vehicleNumber", "vehicleType", "maxCapacityKg", "status"]
+    }
+  },
+  "firestore": {
+    "/pickup_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/pickup_request"
+      },
+      "description": "Collection of all municipal pickup requests and citizen grievance reports"
+    },
+    "/teams/{teamId}": {
+      "schema": {
+        "$ref": "#/entities/collection_team"
+      },
+      "description": "Collection of municipal collection fleet teams and rosters"
+    }
+  }
+}

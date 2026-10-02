@@ -1,0 +1,86 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPickupRequest(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.requesterName is string && data.requesterName.size() <= 200 &&
+             data.locationName is string && data.locationName.size() <= 200 &&
+             data.address is string && data.address.size() <= 500 &&
+             data.latitude is number &&
+             data.longitude is number &&
+             data.category in ['General', 'Plastic', 'Organic', 'Electronic', 'Hazardous'] &&
+             data.severity in ['Low', 'Medium', 'High', 'Critical'] &&
+             data.waitingHours is number && data.waitingHours >= 0 &&
+             data.quantityKg is number && data.quantityKg >= 0 &&
+             data.sensitiveProximity in ['None', 'Moderate', 'Close', 'Adjacent'] &&
+             data.priorityScore is number && data.priorityScore >= 0 && data.priorityScore <= 100 &&
+             data.priorityLevel in ['Critical', 'High', 'Medium', 'Low'] &&
+             data.status in ['Pending', 'Assigned', 'In Progress', 'Completed'] &&
+             (!('assignedTeamId' in data) || data.assignedTeamId is string) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
+             (!('photos' in data) || (data.photos is list && data.photos.size() <= 10)) &&
+             (!('createdAt' in data) || data.createdAt is string) &&
+             (!('completedAt' in data) || data.completedAt is string);
+    }
+
+    function isValidCollectionTeam(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.vehicleNumber is string && data.vehicleNumber.size() <= 50 &&
+             data.vehicleType is string && data.vehicleType.size() <= 100 &&
+             data.maxCapacityKg is number && data.maxCapacityKg > 0 &&
+             data.status in ['Available', 'On Route', 'Standby', 'Maintenance'] &&
+             data.crew is list && data.crew.size() <= 20 &&
+             data.assignedRequestIds is list && data.assignedRequestIds.size() <= 100 &&
+             data.completedRequestIds is list && data.completedRequestIds.size() <= 500;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pickup Requests: Citizen complaints & municipal queue
+    match /pickup_requests/{requestId} {
+      allow get, list: if true;
+      allow create: if isValidId(requestId) &&
+                       isValidPickupRequest(incoming()) &&
+                       incoming().id == requestId;
+      allow update: if isValidId(requestId) &&
+                       isValidPickupRequest(incoming()) &&
+                       incoming().id == existing().id;
+      allow delete: if isValidId(requestId);
+    }
+
+    // Collection Fleet Teams & Rosters
+    match /teams/{teamId} {
+      allow get, list: if true;
+      allow create: if isValidId(teamId) &&
+                       isValidCollectionTeam(incoming()) &&
+                       incoming().id == teamId;
+      allow update: if isValidId(teamId) &&
+                       isValidCollectionTeam(incoming()) &&
+                       incoming().id == existing().id;
+      allow delete: if isValidId(teamId);
+    }
+  }
+}
